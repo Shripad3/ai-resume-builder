@@ -1,8 +1,13 @@
 # 🧠 AI Resume Builder
-
+🚀 **Live Demo:** [ai-resume-builder.vercel.app](https://ai-resume-builder-chi-eight.vercel.app/dashboard)
 An AI-powered web app that helps you **improve your resume** and **generate tailored cover letters** using OpenAI.
 
 Built with **Next.js**, **TailwindCSS**, and **Framer Motion**, this tool helps job seekers create professional, role-specific application materials in seconds.
+
+![Next.js](https://img.shields.io/badge/Built%20with-Next.js-000?style=flat&logo=nextdotjs)
+![TailwindCSS](https://img.shields.io/badge/Styled%20with-TailwindCSS-38bdf8?style=flat&logo=tailwindcss)
+![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000?style=flat&logo=vercel)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ## 🚀 Features
 
