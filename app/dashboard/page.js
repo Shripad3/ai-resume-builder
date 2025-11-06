@@ -459,8 +459,9 @@ export default function DashboardPage() {
 
             <div className="flex flex-wrap gap-2">
               <button
-                type="submit"
-                disabled={isLoading || uploading}
+                type="button"
+                onClick={handleGenerate}
+                disabled={isLoading || uploading || !resume || !jobDescription}
                 className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-medium"
               >
                 {isLoading ? "Generating..." : "Generate improved resume"}
