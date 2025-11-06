@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function DashboardPage() {
   const [resume, setResume] = useState("");
@@ -17,42 +20,112 @@ export default function DashboardPage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState("resume");
   const [history, setHistory] = useState([]);
+  const [user, setUser] = useState(null);
 
+  // Load user + history from Supabase
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("ai-resume-history");
-      if (stored) {
-        setHistory(JSON.parse(stored));
+    async function loadUserAndHistory() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setUser(user ?? null);
+
+      if (user) {
+        const { data, error } = await supabase
+          .from("histories")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Failed to load history", error);
+        } else if (data) {
+          setHistory(data);
+        }
       }
-    } catch (err) {
-      console.error("Failed to load history", err);
     }
+
+    loadUserAndHistory();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setHistory([]);
+      } else {
+        supabase
+          .from("histories")
+          .select("*")
+          .eq("user_id", currentUser.id)
+          .order("created_at", { ascending: false })
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Failed to load history", error);
+            } else if (data) {
+              setHistory(data);
+            }
+          });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("ai-resume-history", JSON.stringify(history));
-    } catch (err) {
-      console.error("Failed to save history", err);
+  async function handleLogin() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+    });
+    if (error) {
+      console.error(error);
+      toast.error("Failed to start login");
     }
-  }, [history]);
+  }
 
-  function addHistoryEntry({ type, output }) {
-    const entry = {
-      id: Date.now(),
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error(error);
+      toast.error("Failed to log out");
+    } else {
+      toast.success("Logged out");
+    }
+  }
+
+  // Save history entry to Supabase for logged-in users
+  async function addHistoryEntry({ type, output }) {
+    if (!user) return; // only save cloud history when logged in
+
+    const payload = {
+      user_id: user.id,
       type, // "resume" | "cover"
-      createdAt: new Date().toISOString(),
       resume,
-      jobDescription,
+      job_description: jobDescription,
       output,
     };
 
-    setHistory((prev) => [entry, ...prev].slice(0, 20)); // keep last 20
+    const { data, error } = await supabase
+      .from("histories")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to save history", error);
+      return;
+    }
+
+    setHistory((prev) => [data, ...prev]);
   }
 
   function handleLoadFromHistory(entry) {
     setResume(entry.resume || "");
-    setJobDescription(entry.jobDescription || "");
+    setJobDescription(entry.job_description || entry.jobDescription || "");
 
     if (entry.type === "resume") {
       setResult(entry.output || "");
@@ -69,7 +142,20 @@ export default function DashboardPage() {
     );
   }
 
-  function handleClearHistory() {
+  async function handleClearHistory() {
+    if (user) {
+      const { error } = await supabase
+        .from("histories")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Failed to clear history", error);
+        toast.error("Could not clear history");
+        return;
+      }
+    }
+
     setHistory([]);
     toast.success("Cleared history");
   }
@@ -148,7 +234,7 @@ export default function DashboardPage() {
     setUploadedFileName(file.name);
 
     try {
-      const text = await file.text(); // text-based upload
+      const text = await file.text();
       setResume(text);
       toast.success("Loaded resume from file 📄");
     } catch (err) {
@@ -249,8 +335,36 @@ export default function DashboardPage() {
               AI Resume Builder
             </span>
           </div>
-          <div className="text-xs text-slate-400">
-            Dashboard · Draft version
+
+          {/* Auth status + actions */}
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            {user ? (
+              <>
+                <span className="text-slate-300">
+                  Signed in as{" "}
+                  <span className="font-medium">
+                    {user.email ||
+                      user.user_metadata?.full_name ||
+                      "User"}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-2 py-1 rounded-md border border-slate-700 hover:border-slate-500 text-[11px] text-slate-200"
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLogin}
+                className="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-100"
+              >
+                Sign in with GitHub
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -335,7 +449,6 @@ export default function DashboardPage() {
           </form>
         </div>
 
-        {/* Right side: result */}
         {/* Right side: tabs + content */}
         <div className="space-y-3">
           {/* Tabs + actions */}
@@ -415,8 +528,11 @@ export default function DashboardPage() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
+                      className="prose prose-invert prose-sm max-w-none"
                     >
-                      {result}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {result}
+                      </ReactMarkdown>
                     </motion.div>
                   ) : (
                     <motion.span
@@ -458,8 +574,11 @@ export default function DashboardPage() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
+                      className="prose prose-invert prose-sm max-w-none"
                     >
-                      {coverLetter}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {coverLetter}
+                      </ReactMarkdown>
                     </motion.div>
                   ) : (
                     <motion.span
@@ -482,6 +601,7 @@ export default function DashboardPage() {
               )
             ) : null}
           </div>
+
           {/* Generation history */}
           <div className="space-y-2 pt-4 border-t border-slate-800">
             <div className="flex items-center justify-between">
@@ -502,34 +622,42 @@ export default function DashboardPage() {
             <div className="space-y-1 max-h-40 overflow-auto text-xs">
               {history.length === 0 ? (
                 <p className="text-slate-500 text-[11px]">
-                  No history yet. Generate a resume or cover letter to see it
-                  here.
+                  {user
+                    ? "No history yet. Generate a resume or cover letter to see it here."
+                    : "Sign in to save and view your generation history across devices."}
                 </p>
               ) : (
-                history.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => handleLoadFromHistory(entry)}
-                    className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800 border border-slate-800/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] uppercase tracking-wide text-slate-400">
-                        {entry.type === "resume" ? "Resume" : "Cover letter"}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {new Date(entry.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-300 truncate">
-                      {entry.jobDescription?.slice(0, 80) ||
-                        "No job description"}
-                    </div>
-                  </button>
-                ))
+                history.map((entry) => {
+                  const createdAt = entry.created_at || entry.createdAt;
+                  const jobDesc =
+                    entry.job_description || entry.jobDescription || "";
+
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => handleLoadFromHistory(entry)}
+                      className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800 border border-slate-800/40"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] uppercase tracking-wide text-slate-400">
+                          {entry.type === "resume" ? "Resume" : "Cover letter"}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {createdAt
+                            ? new Date(createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-300 truncate">
+                        {jobDesc.slice(0, 80) || "No job description"}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>

@@ -20,7 +20,7 @@ I will give you:
 2) A specific job description
 
 Your task:
-- Rewrite and improve the resume content so it is tailored specifically to the job.
+- Rewrite and improve the resume content so it is tailored specifically to the job description given.
 - Focus on clear bullet points with strong action verbs and measurable impact.
 - Include relevant keywords from the job description where it makes sense.
 - Keep it concise and professional.
