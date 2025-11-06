@@ -81,7 +81,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  async function handleLogin() {
+  async function handleLogin(provider) {
     try {
       const redirectTo =
         typeof window !== "undefined"
@@ -89,7 +89,7 @@ export default function DashboardPage() {
           : undefined;
 
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "github",
+        provider, // "github" or "google"
         options: redirectTo ? { redirectTo } : undefined,
       });
 
@@ -376,9 +376,7 @@ export default function DashboardPage() {
                 <span className="text-slate-300">
                   Signed in as{" "}
                   <span className="font-medium">
-                    {user.email ||
-                      user.user_metadata?.full_name ||
-                      "User"}
+                    {user.email || user.user_metadata?.full_name || "User"}
                   </span>
                 </span>
                 <button
@@ -390,13 +388,22 @@ export default function DashboardPage() {
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-100"
-              >
-                Sign in with GitHub
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleLogin("github")}
+                  className="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-100"
+                >
+                  GitHub
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLogin("google")}
+                  className="px-3 py-1.5 rounded-md border border-slate-700 hover:border-slate-500 text-[11px] text-slate-100"
+                >
+                  Google
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -525,9 +532,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={toggleEdit}
-                disabled={
-                  activeTab === "resume" ? !result : !coverLetter
-                }
+                disabled={activeTab === "resume" ? !result : !coverLetter}
                 className="px-3 py-1.5 rounded-md border border-slate-700 text-xs hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {activeTab === "resume"

@@ -28,7 +28,7 @@ export default function LandingPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function handleLogin() {
+  async function handleLogin(provider) {
     try {
       const redirectTo =
         typeof window !== "undefined"
@@ -36,7 +36,7 @@ export default function LandingPage() {
           : undefined;
 
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "github",
+        provider, // 👈 dynamic now
         options: redirectTo ? { redirectTo } : undefined,
       });
 
@@ -101,14 +101,20 @@ export default function LandingPage() {
               ) : (
                 <>
                   <button
-                    onClick={handleLogin}
+                    onClick={() => handleLogin("github")}
                     className="w-full sm:w-auto px-5 py-2.5 rounded-md bg-blue-600 hover:bg-blue-500 font-medium text-sm"
                   >
                     Sign in with GitHub
                   </button>
                   <button
+                    onClick={() => handleLogin("google")}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-md bg-slate-900 border border-slate-700 hover:border-slate-500 font-medium text-sm"
+                  >
+                    Sign in with Google
+                  </button>
+                  <button
                     onClick={() => router.push("/dashboard")}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-md border border-slate-700 hover:border-slate-500 text-sm"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-md border border-slate-800 hover:border-slate-600 text-sm"
                   >
                     Continue without signing in
                   </button>
@@ -158,9 +164,7 @@ export default function LandingPage() {
 
         {/* Features */}
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100">
-            What you get
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-100">What you get</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
               <div className="h-8 w-8 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-sm mb-3">
@@ -215,7 +219,9 @@ export default function LandingPage() {
           <ul className="grid gap-2 text-xs text-slate-300 md:grid-cols-2">
             <li className="flex items-start gap-2">
               <span className="mt-[3px] text-blue-400">•</span>
-              <span>Sync your resume and cover letter history across devices.</span>
+              <span>
+                Sync your resume and cover letter history across devices.
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-[3px] text-blue-400">•</span>
@@ -230,8 +236,8 @@ export default function LandingPage() {
             <li className="flex items-start gap-2">
               <span className="mt-[3px] text-blue-400">•</span>
               <span>
-                Your content stays private. Nothing is posted to GitHub or shared
-                publicly.
+                Your content stays private. Nothing is posted to GitHub or
+                shared publicly.
               </span>
             </li>
           </ul>
