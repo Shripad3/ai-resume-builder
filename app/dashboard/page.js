@@ -22,6 +22,10 @@ export default function DashboardPage() {
   const [history, setHistory] = useState([]);
   const [user, setUser] = useState(null);
 
+  // NEW: editing state per tab
+  const [isEditingResume, setIsEditingResume] = useState(false);
+  const [isEditingCover, setIsEditingCover] = useState(false);
+
   // Load user + history from Supabase
   useEffect(() => {
     async function loadUserAndHistory() {
@@ -78,11 +82,23 @@ export default function DashboardPage() {
   }, []);
 
   async function handleLogin() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-    });
-    if (error) {
-      console.error(error);
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/`
+          : undefined;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: redirectTo ? { redirectTo } : undefined,
+      });
+
+      if (error) {
+        console.error(error);
+        toast.error("Failed to start login");
+      }
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to start login");
     }
   }
@@ -130,9 +146,13 @@ export default function DashboardPage() {
     if (entry.type === "resume") {
       setResult(entry.output || "");
       setActiveTab("resume");
+      setIsEditingResume(false);
+      setIsEditingCover(false);
     } else {
       setCoverLetter(entry.output || "");
       setActiveTab("cover");
+      setIsEditingResume(false);
+      setIsEditingCover(false);
     }
 
     toast.success(
@@ -165,6 +185,7 @@ export default function DashboardPage() {
     setResult("");
     setError("");
     setIsLoading(true);
+    setIsEditingResume(false); // exit edit mode when regenerating
 
     try {
       const res = await fetch("/api/generate-resume", {
@@ -197,6 +218,7 @@ export default function DashboardPage() {
     setError("");
     setCoverLetter("");
     setIsCoverLoading(true);
+    setIsEditingCover(false); // exit edit mode when regenerating
 
     try {
       const res = await fetch("/api/generate-cover-letter", {
@@ -319,6 +341,17 @@ export default function DashboardPage() {
       toast.error(message);
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  // helper: toggle edit based on active tab
+  function toggleEdit() {
+    if (activeTab === "resume") {
+      if (!result) return;
+      setIsEditingResume((prev) => !prev);
+    } else if (activeTab === "cover") {
+      if (!coverLetter) return;
+      setIsEditingCover((prev) => !prev);
     }
   }
 
@@ -456,7 +489,11 @@ export default function DashboardPage() {
             <div className="flex items-center bg-slate-900 rounded-full p-1 text-xs">
               <button
                 type="button"
-                onClick={() => setActiveTab("resume")}
+                onClick={() => {
+                  setActiveTab("resume");
+                  setIsEditingResume(false);
+                  setIsEditingCover(false);
+                }}
                 className={`px-3 py-1.5 rounded-full ${
                   activeTab === "resume"
                     ? "bg-slate-700 text-slate-50"
@@ -467,7 +504,11 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("cover")}
+                onClick={() => {
+                  setActiveTab("cover");
+                  setIsEditingResume(false);
+                  setIsEditingCover(false);
+                }}
                 className={`px-3 py-1.5 rounded-full ${
                   activeTab === "cover"
                     ? "bg-slate-700 text-slate-50"
@@ -479,6 +520,24 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Edit toggle button */}
+              <button
+                type="button"
+                onClick={toggleEdit}
+                disabled={
+                  activeTab === "resume" ? !result : !coverLetter
+                }
+                className="px-3 py-1.5 rounded-md border border-slate-700 text-xs hover:border-slate-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {activeTab === "resume"
+                  ? isEditingResume
+                    ? "Done editing"
+                    : "Edit"
+                  : isEditingCover
+                  ? "Done editing"
+                  : "Edit"}
+              </button>
+
               <button
                 type="button"
                 onClick={handleCopy}
@@ -519,6 +578,13 @@ export default function DashboardPage() {
                   <div className="h-3 bg-slate-800 rounded w-5/6" />
                   <div className="h-3 bg-slate-800 rounded w-4/5" />
                 </div>
+              ) : isEditingResume ? (
+                <textarea
+                  value={result}
+                  onChange={(e) => setResult(e.target.value)}
+                  className="w-full h-full min-h-[380px] bg-transparent text-sm text-slate-100 outline-none resize-none"
+                  placeholder="Edit your optimized resume here..."
+                />
               ) : (
                 <AnimatePresence mode="wait">
                   {result ? (
@@ -565,6 +631,13 @@ export default function DashboardPage() {
                   <div className="h-3 bg-slate-800 rounded w-5/6" />
                   <div className="h-3 bg-slate-800 rounded w-4/5" />
                 </div>
+              ) : isEditingCover ? (
+                <textarea
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  className="w-full h-full min-h-[380px] bg-transparent text-sm text-slate-100 outline-none resize-none"
+                  placeholder="Edit your cover letter here..."
+                />
               ) : (
                 <AnimatePresence mode="wait">
                   {coverLetter ? (
