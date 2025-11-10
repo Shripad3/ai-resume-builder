@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const [resume, setResume] = useState("");
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("resume");
   const [history, setHistory] = useState([]);
   const [user, setUser] = useState(null);
+  const router = useRouter();
 
   // NEW: editing state per tab
   const [isEditingResume, setIsEditingResume] = useState(false);
@@ -84,13 +86,12 @@ export default function DashboardPage() {
   async function handleLogin(provider) {
     try {
       const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/`
-          : undefined;
+        process.env.NEXT_PUBLIC_SITE_URL ??
+        (typeof window !== "undefined" ? window.location.origin : undefined);
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider, // "github" or "google"
-        options: redirectTo ? { redirectTo } : undefined,
+        ...(redirectTo ? { options: { redirectTo } } : {}),
       });
 
       if (error) {
@@ -99,7 +100,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to start login");
+      toast.error("Login failed");
     }
   }
 
@@ -256,19 +257,83 @@ export default function DashboardPage() {
     setUploadedFileName(file.name);
 
     try {
-      const text = await file.text();
+      let text = "";
+
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+
+      if (isPdf) {
+        // 🔵 Use env var, but fall back to localhost:8000 if it's missing
+        const baseUrl =
+          process.env.NEXT_PUBLIC_PDF_SERVICE_URL || "http://127.0.0.1:8000";
+
+        console.log("Using PDF service URL:", baseUrl);
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${baseUrl}/parse-pdf`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        console.log("Python parse-pdf response:", res.status, data);
+
+        if (data.error || !res.ok) {
+          throw new Error(
+            data.error ||
+              "We couldn't read that PDF. Try exporting as .txt or copy-pasting your resume."
+          );
+        }
+
+        text = data.text;
+      } else {
+        // 🟢 .txt or other text-like files
+        text = await file.text();
+      }
+
+      if (!text || !text.trim()) {
+        throw new Error("Could not extract any text from that file.");
+      }
+
       setResume(text);
       toast.success("Loaded resume from file 📄");
     } catch (err) {
       console.error(err);
       const message =
-        "Could not read that file. For now, please upload a .txt file or paste your resume manually.";
+        err.message ||
+        "Could not read that file. Please upload a .txt or text-based PDF, or paste your resume manually.";
       setError(message);
       toast.error(message);
     } finally {
       setUploading(false);
     }
   }
+
+  // async function handleFileChange(e) {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+
+  //   setError("");
+  //   setUploading(true);
+  //   setUploadedFileName(file.name);
+
+  //   try {
+  //     const text = await file.text();
+  //     setResume(text);
+  //     toast.success("Loaded resume from file 📄");
+  //   } catch (err) {
+  //     console.error(err);
+  //     const message =
+  //       "Could not read that file. For now, please upload a .txt file or paste your resume manually.";
+  //     setError(message);
+  //     toast.error(message);
+  //   } finally {
+  //     setUploading(false);
+  //   }
+  // }
 
   async function handleCopy() {
     const text = activeTab === "resume" ? result : coverLetter;
@@ -360,7 +425,10 @@ export default function DashboardPage() {
       {/* Top bar */}
       <header className="border-b border-slate-800">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => router.push("/")}
+          >
             <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold">
               AI
             </div>
@@ -428,11 +496,11 @@ export default function DashboardPage() {
                 <label className="inline-flex items-center px-3 py-2 rounded-md border border-slate-700 text-xs cursor-pointer hover:border-slate-500">
                   <input
                     type="file"
-                    accept=".txt,text/plain"
+                    accept=".txt,text/plain,application/pdf,.pdf"
                     className="hidden"
                     onChange={handleFileChange}
                   />
-                  <span>Upload resume (.txt)</span>
+                  <span>Upload resume (.txt/.pdf)</span>
                 </label>
                 <span className="text-xs text-slate-400 truncate max-w-xs">
                   {uploading

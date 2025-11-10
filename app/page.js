@@ -31,13 +31,12 @@ export default function LandingPage() {
   async function handleLogin(provider) {
     try {
       const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/`
-          : undefined;
+        process.env.NEXT_PUBLIC_SITE_URL ??
+        (typeof window !== "undefined" ? window.location.origin : undefined);
 
       const { error } = await supabase.auth.signInWithOAuth({
-        provider, // 👈 dynamic now
-        options: redirectTo ? { redirectTo } : undefined,
+        provider, // "github" or "google"
+        ...(redirectTo ? { options: { redirectTo } } : {}),
       });
 
       if (error) {
